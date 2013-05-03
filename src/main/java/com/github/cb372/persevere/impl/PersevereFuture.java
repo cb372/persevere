@@ -2,6 +2,7 @@ package com.github.cb372.persevere.impl;
 
 import com.github.cb372.persevere.ExecutionResult;
 
+import javax.annotation.concurrent.GuardedBy;
 import java.util.concurrent.*;
 
 /**
@@ -11,6 +12,8 @@ import java.util.concurrent.*;
 public class PersevereFuture<T> implements Future<ExecutionResult<T>> {
     private final CountDownLatch complete = new CountDownLatch(1);
     private volatile ExecutionResult<T> result;
+    @GuardedBy("this") private Future<?> currentTaskFuture;
+    @GuardedBy("this") private boolean cancelled;
 
     /**
      * Mark the future as complete (either succeeded or failed).
@@ -18,25 +21,37 @@ public class PersevereFuture<T> implements Future<ExecutionResult<T>> {
      *
      * @param result the result of performing the action
      */
-    protected void markComplete(ExecutionResult<T> result) {
+    protected synchronized void markComplete(ExecutionResult<T> result) {
         if (result == null) {
             throw new IllegalArgumentException("Result must not be null");
         }
-        if (complete.getCount() == 0) {
-            throw new IllegalStateException("Future has already completed");
+        if (!isDone()) {
+            this.result = result;
+            complete.countDown();
         }
-        this.result = result;
-        complete.countDown();
+    }
+
+    protected synchronized void setCurrentTaskFuture(Future<?> currentTaskFuture) {
+        this.currentTaskFuture = currentTaskFuture;
     }
 
     @Override
-    public boolean cancel(boolean mayInterruptIfRunning) {
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+    public synchronized boolean cancel(boolean mayInterruptIfRunning) {
+        if (isDone()) {
+            return false;
+        } else {
+            if (currentTaskFuture != null) {
+                currentTaskFuture.cancel(mayInterruptIfRunning);
+            }
+            cancelled = true;
+            complete.countDown();
+            return true;
+        }
     }
 
     @Override
-    public boolean isCancelled() {
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+    public synchronized boolean isCancelled() {
+        return cancelled;
     }
 
     @Override
@@ -47,12 +62,18 @@ public class PersevereFuture<T> implements Future<ExecutionResult<T>> {
     @Override
     public ExecutionResult<T> get() throws InterruptedException, ExecutionException {
         complete.await();
+        if (isCancelled()) {
+            throw new CancellationException();
+        }
         return result;
     }
 
     @Override
     public ExecutionResult<T> get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
         complete.await(timeout, unit);
+        if (isCancelled()) {
+            throw new CancellationException();
+        }
         return result;
     }
 }

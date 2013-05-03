@@ -7,6 +7,7 @@ import com.github.cb372.persevere.action.GiveUp;
 import com.github.cb372.persevere.action.RetryableAction;
 import com.github.cb372.persevere.delay.DelayStrategy;
 
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -30,10 +31,18 @@ public class PersevereTask<T> implements Runnable {
             config.future.markComplete(ExecutionResult.success(result, tryCount));
         } catch (GiveUp g) {
             config.future.markComplete(ExecutionResult.<T>failure(g, tryCount));
+        } catch (InterruptedException e) {
+            // cancelled or otherwise interrupted, so stop retrying
         } catch (Exception e) {
             if (canRetry()) {
                 PersevereTask<T> nextTask = new PersevereTask<T>(config, tryCount + 1);
-                config.executor.schedule(nextTask, config.delayStrategy.getNextDelayMs(tryCount), TimeUnit.MILLISECONDS);
+
+                // Must synchronize to avoid race condition where future is cancelled
+                // between scheduling the next task and updating future.currentTaskFuture
+                synchronized (config.future) {
+                    Future<?> nextFuture = config.executor.schedule(nextTask, config.delayStrategy.getNextDelayMs(tryCount), TimeUnit.MILLISECONDS);
+                    config.future.setCurrentTaskFuture(nextFuture);
+                }
             } else {
                 config.future.markComplete(ExecutionResult.<T>failure(e, tryCount));
             }

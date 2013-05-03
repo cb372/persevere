@@ -28,7 +28,11 @@ public final class PersevereRunner {
         PersevereFuture<T> future = new PersevereFuture<T>();
         PersevereTask.Config<T> config = new PersevereTask.Config<T>(action, future, executor, maxRetries, delayStrategy);
         Runnable firstTask = new PersevereTask<T>(config, 0);
-        executor.submit(firstTask);
+        //noinspection SynchronizationOnLocalVariableOrMethodParameter
+        synchronized (future) {
+            Future<?> f = executor.submit(firstTask);
+            future.setCurrentTaskFuture(f);
+        }
         return future;
     }
 

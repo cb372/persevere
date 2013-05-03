@@ -3,15 +3,18 @@ package com.github.cb372.persevere;
 import com.github.cb372.persevere.action.GiveUp;
 import com.github.cb372.persevere.action.RetryableAction;
 import com.github.cb372.persevere.delay.DelayStrategies;
+import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 
@@ -49,5 +52,38 @@ public class PersevereTest {
         assertThat(result.success, is(true));
         assertThat(result.result, is("You can get it you really want"));
         assertThat(result.retries, is(2));
+    }
+
+    @Test(timeout = 1000, expected = CancellationException.class)
+    public void canCancelAnActionWhileWaitingToRetry() throws ExecutionException, InterruptedException {
+        RetryableAction<String> action = new RetryableAction<String>() {
+            @Override
+            public String execute(int retryCount) throws GiveUp, Exception {
+                throw new IOException("Argh!");
+            }
+        };
+        Future<ExecutionResult<String>> future = Persevere.persevere(action, DelayStrategies.fixedDelay(1000), 2);
+        Thread.sleep(100);
+        future.cancel(true);
+
+        assertThat(future.isCancelled(), is(true));
+        future.get(); // should throw exception
+    }
+
+    @Test(timeout = 1000, expected = CancellationException.class)
+    public void canCancelAnActionWhileActionIsRunning() throws ExecutionException, InterruptedException {
+        RetryableAction<String> action = new RetryableAction<String>() {
+            @Override
+            public String execute(int retryCount) throws GiveUp, Exception {
+                Thread.sleep(1000); // will throw InterruptedException
+                return "hello";
+            }
+        };
+        Future<ExecutionResult<String>> future = Persevere.persevere(action, DelayStrategies.fixedDelay(1000), 2);
+        Thread.sleep(100);
+        future.cancel(true);
+
+        assertThat(future.isCancelled(), is(true));
+        future.get(); // should throw exception
     }
 }
