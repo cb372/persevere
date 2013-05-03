@@ -7,6 +7,7 @@ import com.github.cb372.persevere.impl.PersevereRunner;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 /**
  * Author: chris
@@ -14,9 +15,18 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public final class Persevere {
     private static volatile ScheduledExecutorService executor = null;
+    private static volatile boolean createdOurOwnExecutor = false;
 
     private Persevere() {
         // static methods only
+    }
+
+    public static void init(int threadPoolSize) {
+        if (threadPoolSize <= 0) {
+            throw new IllegalArgumentException("Thread pool size must be >= 1");
+        }
+        Persevere.executor = new ScheduledThreadPoolExecutor(threadPoolSize);
+        Persevere.createdOurOwnExecutor = true;
     }
 
     public static void init(ScheduledExecutorService executor) {
@@ -27,6 +37,7 @@ public final class Persevere {
             throw new IllegalArgumentException("Please provide a ScheduledExecutorService");
         }
         Persevere.executor = executor;
+        Persevere.createdOurOwnExecutor = false;
     }
 
     /**
@@ -51,7 +62,7 @@ public final class Persevere {
     }
 
     public static void shutdown() {
-        if (Persevere.executor != null) {
+        if (Persevere.executor != null && Persevere.createdOurOwnExecutor) {
             Persevere.executor.shutdown();
         }
     }

@@ -23,7 +23,7 @@ public class PersevereTest {
 
     @Before
     public void initPersevere() {
-        Persevere.init(new ScheduledThreadPoolExecutor(2));
+        Persevere.init(2);
     }
 
     @After
