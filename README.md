@@ -53,7 +53,7 @@ RetryableAction<Integer> myAction = new RetryableAction<Integer> {
             return (someLongRunningCalculation() / n);
         } catch (ArithmeticException e) {
             // oops! divided by zero!
-            return GiveUp.giveUpBecauseOf(e);
+            throw GiveUp.giveUpBecauseOf(e);
         }
     }
 };
