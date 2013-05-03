@@ -7,6 +7,8 @@ import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.both;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -38,7 +40,7 @@ public class DelayStrategiesTest {
         DelayStrategy strategy = DelayStrategies.random(100, 200);
         for (int i=0; i<1000; i++) {
             long nextDelay = strategy.getNextDelayMs(i);
-            assertThat(nextDelay, both(gte(100L)).and(lt(200L)));
+            assertThat(nextDelay, both(greaterThanOrEqualTo(100L)).and(lessThan(200L)));
         }
     }
 
@@ -52,33 +54,4 @@ public class DelayStrategiesTest {
         assertThat(strategy.getNextDelayMs(4), is(160L));
     }
 
-    // TODO add dependency on hamcrest-all and delete these
-
-    private Matcher<Long> gte(final long value) {
-        return new BaseMatcher<Long>() {
-            @Override
-            public boolean matches(Object item) {
-                return ((Long)item) >= value;
-            }
-
-            @Override
-            public void describeTo(Description description) {
-                description.appendText("a value >= than ").appendValue(value);
-            }
-        };
-    }
-
-    private Matcher<Long> lt(final long value) {
-        return new BaseMatcher<Long>() {
-            @Override
-            public boolean matches(Object item) {
-                return ((Long)item) < value;
-            }
-
-            @Override
-            public void describeTo(Description description) {
-                description.appendText("a value < than ").appendValue(value);
-            }
-        };
-    }
 }
